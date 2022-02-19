@@ -23,10 +23,7 @@
  */
 package aztech.modern_industrialization.machines.blockentities;
 
-import aztech.modern_industrialization.api.energy.CableTier;
-import aztech.modern_industrialization.api.energy.EnergyApi;
-import aztech.modern_industrialization.api.energy.EnergyExtractable;
-import aztech.modern_industrialization.api.energy.EnergyInsertable;
+import aztech.modern_industrialization.api.energy.*;
 import aztech.modern_industrialization.compat.megane.holder.EnergyComponentHolder;
 import aztech.modern_industrialization.inventory.MIInventory;
 import aztech.modern_industrialization.machines.BEP;
@@ -35,22 +32,23 @@ import aztech.modern_industrialization.machines.components.EnergyComponent;
 import aztech.modern_industrialization.machines.components.OrientationComponent;
 import aztech.modern_industrialization.machines.components.sync.EnergyBar;
 import aztech.modern_industrialization.machines.gui.MachineGuiParameters;
-import aztech.modern_industrialization.machines.helper.EnergyHelper;
 import aztech.modern_industrialization.machines.models.MachineCasing;
 import aztech.modern_industrialization.machines.models.MachineCasings;
 import aztech.modern_industrialization.machines.models.MachineModelClientData;
 import aztech.modern_industrialization.util.Simulation;
 import aztech.modern_industrialization.util.Tickable;
+import net.fabricmc.fabric.api.lookup.v1.block.BlockApiCache;
 import net.fabricmc.fabric.api.transfer.v1.context.ContainerItemContext;
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import team.reborn.energy.api.EnergyStorage;
 
-public abstract class AbstractStorageMachineBlockEntity extends MachineBlockEntity implements Tickable, EnergyComponentHolder {
+public class DownwardAbstractTransformerMachineBlockEntity extends MachineBlockEntity implements Tickable, EnergyComponentHolder {
 
     protected final EnergyComponent energy;
 
@@ -60,7 +58,9 @@ public abstract class AbstractStorageMachineBlockEntity extends MachineBlockEnti
     protected final long eu_capacity;
     protected final CableTier from, to;
 
-    public AbstractStorageMachineBlockEntity(BEP bep, CableTier from, CableTier to, String name, long eu_capacity) {
+    private final EnergyMoveable[] EnergyCaches = new EnergyMoveable[6];
+
+    public DownwardAbstractTransformerMachineBlockEntity(BEP bep, CableTier from, CableTier to, String name, long eu_capacity) {
         super(bep, new MachineGuiParameters.Builder(name, false).build(), new OrientationComponent.Params(true, false, false));
 
         this.from = from;
@@ -94,10 +94,22 @@ public abstract class AbstractStorageMachineBlockEntity extends MachineBlockEnti
     }
 
     @Override
-    public void tick() {
-        if (!level.isClientSide) {
-            EnergyHelper.autoOuput(this, orientation, to, energy);
+    public void tick()
+    {
+        if (!level.isClientSide)
+        {
+            for (Direction direction : Direction.values()) {
+                if (EnergyCaches[direction.ordinal()] == null)
+                {
+                    EnergyCaches[direction.ordinal()] = EnergyApi.MOVEABLE.find(this.getLevel(), this.getBlockPos().relative(direction), direction.getOpposite());
+                }
+                if (EnergyCaches[direction.ordinal()] instanceof EnergyInsertable && ((EnergyInsertable) EnergyCaches[direction.ordinal()]).canInsert(to) && this.orientation.outputDirection != direction)
+                {
+                    energy.insertEnergy((EnergyInsertable) EnergyCaches[direction.ordinal()]);
+                }
+            }
         }
+        this.setChanged();
     }
 
     @Override
@@ -130,11 +142,11 @@ public abstract class AbstractStorageMachineBlockEntity extends MachineBlockEnti
 
     public static void registerEnergyApi(BlockEntityType<?> bet) {
         EnergyApi.MOVEABLE.registerForBlockEntities((be, direction) -> {
-            AbstractStorageMachineBlockEntity abe = (AbstractStorageMachineBlockEntity) be;
+            DownwardAbstractTransformerMachineBlockEntity abe = (DownwardAbstractTransformerMachineBlockEntity) be;
             if (abe.orientation.outputDirection == direction) {
-                return abe.extractable;
-            } else {
                 return abe.insertable;
+            } else {
+                return abe.extractable;
             }
         }, bet);
     }

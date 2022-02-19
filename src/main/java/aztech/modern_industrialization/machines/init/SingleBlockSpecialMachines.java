@@ -95,8 +95,7 @@ public class SingleBlockSpecialMachines {
                     AbstractStorageMachineBlockEntity::registerEnergyApi);
 
             String upToLow = TransformerMachineBlockEntity.getTransformerName(up, low);
-            MachineRegistrationHelper.registerMachine(upToLow, bet -> new TransformerMachineBlockEntity(bet, up, low),
-                    AbstractStorageMachineBlockEntity::registerEnergyApi);
+            MachineRegistrationHelper.registerMachine(upToLow, bet -> new DownwardAbstractTransformerMachineBlockEntity(bet, up, low, up + "_" + low + "_transformer", 200 * Math.min(up.eu, low.eu)), DownwardAbstractTransformerMachineBlockEntity::registerEnergyApi);
 
             if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
                 MachineModels.addTieredMachine(lowToUp, "transformer", getTransformerCasingFromTier(low, up), true, true, true, false);
